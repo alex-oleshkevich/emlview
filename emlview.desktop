@@ -3,7 +3,8 @@
 Name=Email View
 GenericName=Image Sharer
 Comment=A simple image sharer
-Exec=emailview %U
+Exec=emlview %U
 Terminal=false
 Type=Application
 MimeType=message/rfc822
+Icon=emlview.svg
