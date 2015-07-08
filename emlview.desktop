@@ -1,0 +1,9 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Name=Email View
+GenericName=Image Sharer
+Comment=A simple image sharer
+Exec=emailview %U
+Terminal=false
+Type=Application
+MimeType=message/rfc822

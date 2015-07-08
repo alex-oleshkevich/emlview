@@ -1,0 +1,71 @@
+#!/usr/bin/python3
+import os
+
+import sys, email, quopri
+from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QMessageBox
+from PyQt5.QtGui import QIcon
+from PyQt5.uic import loadUi
+import signal
+
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+ui_files = ('mainwindow.ui', '/usr/share/emlview/mainwindow.ui')
+def find_file(file_set):
+    return [file for file in file_set if os.path.exists(file)][0]
+
+class App(QMainWindow):
+    def __init__(self):
+        QMainWindow.__init__(self)
+        self.initUI()
+        self.loadEml()
+
+    def initUI(self):
+        loadUi(find_file(ui_files), self)
+
+    def decode(self, transfer_encoding,  text_encoding, content):
+        if transfer_encoding == 'quoted-printable':
+            return quopri.decodestring(content).decode(text_encoding)
+
+    def loadEml(self):
+        try:
+            if len(sys.argv) == 1:
+                raise IOError("No file provided")
+
+            filename = sys.argv[1]
+            if not os.path.exists(filename):
+                raise IOError("emlview: error loading document", "Cannot load file (does not exist)")
+
+            fp = open(filename, 'r')
+            message = email.message_from_file(fp)
+            fp.close()
+
+            for part in message.walk():
+                if part['Content-Type'].startswith('text/'):
+                    content_type = part['Content-Type'].split(';')[0]
+                    encoding = part['Content-Type'].split(';')[1].split('=')[1]
+                    transfer_encoding = part['Content-Transfer-Encoding']
+                    if content_type == 'text/html':
+                        html_body = self.decode(transfer_encoding, encoding, part.get_payload())
+                    elif content_type == 'text/plain':
+                        text_body = part.get_payload()
+
+            self.label_subject.setText(message['subject'])
+            self.label_from.setText(message['from'])
+            self.label_to.setText(', '.join([string.strip() for string in message['to'].split("\n")]))
+            self.label_date.setText(message['date'])
+            self.textBrowser.setText(text_body)
+            self.webView.setHtml(html_body)
+
+            self.statusBar().showMessage('Loaded: %s' % filename)
+
+
+        except IOError as e:
+            print (e)
+            QMessageBox.critical(self, "emlview: error loading document", str(e)).show()
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = App()
+    window.show()
+    sys.exit(app.exec_())
