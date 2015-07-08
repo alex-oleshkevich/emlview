@@ -7,6 +7,7 @@ fi
 
 BIN=`readlink -f emlview`
 DESKTOP=`readlink -f emlview.desktop`
+chmod +x $BIN
 
 cp $BIN /usr/bin
 cp $DESKTOP /usr/share/applications
