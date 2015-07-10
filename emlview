@@ -1,17 +1,26 @@
 #!/usr/bin/python3
+import base64
+import tempfile
+from PyQt5.QtCore import Qt
 import os
 
 import sys, email, quopri
+import PyQt5
 from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QMessageBox
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QStandardItemModel, QStandardItem
 from PyQt5.uic import loadUi
 import signal
+import re
+import subprocess
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 ui_files = ('mainwindow.ui', '/usr/share/emlview/mainwindow.ui')
+
+
 def find_file(file_set):
     return [file for file in file_set if os.path.exists(file)][0]
+
 
 class App(QMainWindow):
     def __init__(self):
@@ -22,9 +31,14 @@ class App(QMainWindow):
     def initUI(self):
         loadUi(find_file(ui_files), self)
 
-    def decode(self, transfer_encoding,  text_encoding, content):
+    def decode(self, content, transfer_encoding, text_encoding=None):
         if transfer_encoding == 'quoted-printable':
-            return quopri.decodestring(content).decode(text_encoding)
+            decoded = quopri.decodestring(content)
+            if text_encoding:
+                decoded = decoded.decode(text_encoding)
+            return decoded
+        elif transfer_encoding == 'base64':
+            return base64.b64decode(content)
 
     def loadEml(self):
         try:
@@ -39,30 +53,64 @@ class App(QMainWindow):
             message = email.message_from_file(fp)
             fp.close()
 
+            attacments_model = QStandardItemModel()
+            self.list_attachments.setModel(attacments_model)
+            self.list_attachments.doubleClicked.connect(self.onAttachmentClicked)
+
+            text_body = ''
             for part in message.walk():
                 if part['Content-Type'].startswith('text/'):
-                    content_type = part['Content-Type'].split(';')[0]
-                    encoding = part['Content-Type'].split(';')[1].split('=')[1]
+                    meta_parts = part['Content-Type'].split(';')
+                    content_type = meta_parts[0]
+
+                    encoding = None
+                    if len(meta_parts) == 2:
+                        encoding = part['Content-Type'].split(';')[1].split('=')[1]
                     transfer_encoding = part['Content-Transfer-Encoding']
                     if content_type == 'text/html':
-                        html_body = self.decode(transfer_encoding, encoding, part.get_payload())
+                        html_body = self.decode(part.get_payload(), transfer_encoding, encoding)
                     elif content_type == 'text/plain':
                         text_body = part.get_payload()
+                else:
+                    content_disposition = part['Content-Disposition']
+                    if content_disposition and content_disposition.startswith('attachment'):
+                        data = (part.get_filename(), part['Content-Transfer-Encoding'], part.get_payload())
+                        item = QStandardItem(part.get_filename())
+                        item.setData(data, Qt.UserRole)
+                        attacments_model.appendRow(item)
 
-            self.label_subject.setText(message['subject'])
-            self.label_from.setText(message['from'])
+            self.label_subject.setText(message['subject'].replace('\n', ' '))
+            self.label_from.setText(message['from'].replace('\n', ' '))
             self.label_to.setText(', '.join([string.strip() for string in message['to'].split("\n")]))
-            self.label_date.setText(message['date'])
+            self.label_date.setText(message['date'].replace('\n', ' '))
             self.textBrowser.setText(text_body)
             self.webView.setHtml(html_body)
+            self.tb_raw.setText(str(message))
 
-            self.statusBar().showMessage('Loaded: %s' % filename)
+            if html_body is None:
+                self.bodies.setCurrentIndex(1)
+
+            self.statusBar().showMessage('Loaded: %s' % os.path.abspath(filename))
+            if attacments_model.rowCount() == 0:
+                self.frame_attachments.setVisible(False)
 
 
         except IOError as e:
-            print (e)
+            print(e)
             QMessageBox.critical(self, "emlview: error loading document", str(e)).show()
 
+    def onAttachmentClicked(self, index):
+        item = self.list_attachments.model().itemData(index)[Qt.UserRole]
+        filename = item[0]
+        transfer_encoding = item[1]
+        content = item[2]
+
+        tmp_filename = '/tmp/' + filename
+        handle = open(tmp_filename, 'wb')
+        handle.write(self.decode(content, transfer_encoding))
+        handle.close()
+
+        subprocess.call(['xdg-open', tmp_filename])
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
