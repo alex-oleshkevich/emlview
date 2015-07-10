@@ -6,7 +6,7 @@ import os
 
 import sys, email, quopri
 import PyQt5
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QMessageBox
+from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QMessageBox, QMenu
 from PyQt5.QtGui import QIcon, QStandardItemModel, QStandardItem
 from PyQt5.uic import loadUi
 import signal
@@ -57,6 +57,9 @@ class App(QMainWindow):
             self.list_attachments.setModel(attacments_model)
             self.list_attachments.doubleClicked.connect(self.onAttachmentClicked)
 
+            self.list_attachments.setContextMenuPolicy(Qt.CustomContextMenu)
+            self.list_attachments.customContextMenuRequested.connect(self.showAttachmentMenu)
+
             text_body = ''
             for part in message.walk():
                 if part['Content-Type'].startswith('text/'):
@@ -79,10 +82,10 @@ class App(QMainWindow):
                         item.setData(data, Qt.UserRole)
                         attacments_model.appendRow(item)
 
-            self.label_subject.setText(message['subject'].replace('\n', ' '))
-            self.label_from.setText(message['from'].replace('\n', ' '))
+            self.label_subject.setText(message['subject'].replace('\n', ''))
+            self.label_from.setText(message['from'].replace('\n', ''))
             self.label_to.setText(', '.join([string.strip() for string in message['to'].split("\n")]))
-            self.label_date.setText(message['date'].replace('\n', ' '))
+            self.label_date.setText(message['date'].replace('\n', ''))
             self.textBrowser.setText(text_body)
             self.webView.setHtml(html_body)
             self.tb_raw.setText(str(message))
@@ -111,6 +114,17 @@ class App(QMainWindow):
         handle.close()
 
         subprocess.call(['xdg-open', tmp_filename])
+
+    def showAttachmentMenu(self, pos):
+        menu = QMenu()
+        openAction = menu.addAction("Open")
+        openAction.triggered.connect(self.onAttachmentClicked(pos))
+
+        saveAction = menu.addAction("Save")
+
+        menu.exec_(self.list_attachments.mapToGlobal(pos))
+
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
