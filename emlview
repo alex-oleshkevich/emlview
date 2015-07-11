@@ -1,12 +1,12 @@
 #!/usr/bin/python3
 import base64
 import tempfile
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QModelIndex
 import os
 
 import sys, email, quopri
 import PyQt5
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QMessageBox, QMenu
+from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QMessageBox, QMenu, QFileDialog
 from PyQt5.QtGui import QIcon, QStandardItemModel, QStandardItem
 from PyQt5.uic import loadUi
 import signal
@@ -82,9 +82,11 @@ class App(QMainWindow):
                         item.setData(data, Qt.UserRole)
                         attacments_model.appendRow(item)
 
+            tos = ' '.join([string.strip().strip("'") for string in message['to'].split("\n") if len(string.strip().strip("'")) >0])
+
             self.label_subject.setText(message['subject'].replace('\n', ''))
             self.label_from.setText(message['from'].replace('\n', ''))
-            self.label_to.setText(', '.join([string.strip() for string in message['to'].split("\n")]))
+            self.label_to.setText(tos)
             self.label_date.setText(message['date'].replace('\n', ''))
             self.textBrowser.setText(text_body)
             self.webView.setHtml(html_body)
@@ -116,11 +118,29 @@ class App(QMainWindow):
         subprocess.call(['xdg-open', tmp_filename])
 
     def showAttachmentMenu(self, pos):
+        def openAttachment():
+            index = self.list_attachments.indexAt(pos)
+            self.onAttachmentClicked(index)
+
+        def saveAttachment():
+            index = self.list_attachments.indexAt(pos)
+            item = self.list_attachments.model().itemData(index)[Qt.UserRole]
+            filename = item[0]
+            transfer_encoding = item[1]
+            content = item[2]
+
+            dest_filename = QFileDialog.getSaveFileName(self, 'Save attachment', filename)
+            if dest_filename:
+                handle = open(dest_filename[0], 'wb')
+                handle.write(self.decode(content, transfer_encoding))
+                handle.close()
+
         menu = QMenu()
         openAction = menu.addAction("Open")
-        openAction.triggered.connect(self.onAttachmentClicked(pos))
+        openAction.triggered.connect(openAttachment)
 
         saveAction = menu.addAction("Save")
+        saveAction.triggered.connect(saveAttachment)
 
         menu.exec_(self.list_attachments.mapToGlobal(pos))
 
