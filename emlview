@@ -31,6 +31,10 @@ class App(QMainWindow):
     def initUI(self):
         loadUi(find_file(ui_files), self)
 
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self.close()
+
     def decode(self, content, transfer_encoding, text_encoding=None):
         if transfer_encoding == 'quoted-printable':
             decoded = quopri.decodestring(content)
