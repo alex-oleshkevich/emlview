@@ -39,6 +39,8 @@ class App(QMainWindow):
             return decoded
         elif transfer_encoding == 'base64':
             return base64.b64decode(content)
+        elif transfer_encoding == '8bit':
+            return base64.b64decode(content)
 
     def loadEml(self):
         try:
@@ -71,7 +73,10 @@ class App(QMainWindow):
                         encoding = part['Content-Type'].split(';')[1].split('=')[1]
                     transfer_encoding = part['Content-Transfer-Encoding']
                     if content_type == 'text/html':
-                        html_body = self.decode(part.get_payload(), transfer_encoding, encoding)
+                        if transfer_encoding == '8bit':
+                            html_body = part.get_payload()
+                        else:
+                            html_body = self.decode(part.get_payload(), transfer_encoding, encoding)
                     elif content_type == 'text/plain':
                         text_body = part.get_payload()
                 else:
