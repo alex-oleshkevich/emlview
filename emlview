@@ -67,7 +67,12 @@ class App(QMainWindow):
             self.list_attachments.customContextMenuRequested.connect(self.showAttachmentMenu)
 
             text_body = ''
+            html_body = ''
             for part in message.walk():
+                if part['Content-Type'] is None:
+                    part['Content-Type'] = ''
+                   
+                print (part['Content-Type'])
                 if part['Content-Type'].startswith('text/'):
                     meta_parts = part['Content-Type'].split(';')
                     content_type = meta_parts[0]
@@ -78,6 +83,8 @@ class App(QMainWindow):
                     transfer_encoding = part['Content-Transfer-Encoding']
                     if content_type == 'text/html':
                         if transfer_encoding == '8bit':
+                            html_body = part.get_payload()
+                        elif transfer_encoding is None:
                             html_body = part.get_payload()
                         else:
                             html_body = self.decode(part.get_payload(), transfer_encoding, encoding)
@@ -100,10 +107,17 @@ class App(QMainWindow):
             self.textBrowser.setText(text_body)
             self.webView.setHtml(html_body)
             self.tb_raw.setText(str(message))
+            
+            if message['cc']:
+                self.label_cc.setText(message['cc'].replace('\n', ''))
+
+            if message['bcc']:
+                self.label_bcc.setText(message['bcc'].replace('\n', ''))
 
             if html_body is None:
+                self.bodies.tabBar().removeTab(0)
                 self.bodies.setCurrentIndex(1)
-
+            
             self.statusBar().showMessage('Loaded: %s' % os.path.abspath(filename))
             if attacments_model.rowCount() == 0:
                 self.frame_attachments.setVisible(False)
@@ -139,7 +153,7 @@ class App(QMainWindow):
             content = item[2]
 
             dest_filename = QFileDialog.getSaveFileName(self, 'Save attachment', filename)
-            if dest_filename:
+            if dest_filename[0] != "":
                 handle = open(dest_filename[0], 'wb')
                 handle.write(self.decode(content, transfer_encoding))
                 handle.close()
